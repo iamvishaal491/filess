@@ -1,0 +1,58 @@
+import os
+import sys
+from tabulate import tabulate
+
+# 1. Define the MRJob class text
+mrjob_code = '''
+from mrjob.job import MRJob
+
+class MRWordCount(MRJob):
+
+    def mapper(self, _, line):
+        words = line.split()
+        for word in words:
+            yield word, 1
+
+    def reducer(self, word, counts):
+        yield word, sum(counts)
+
+if __name__ == '__main__':
+    MRWordCount.run()
+'''
+
+# 2. Write the MRJob class to a local file
+with open('word_count_script.py', 'w') as script_file:
+    script_file.write(mrjob_code)
+
+# 3. Get the input file from the terminal command argument (defaults to input.txt)
+input_filename = sys.argv[1] if len(sys.argv) > 1 else 'input.txt'
+
+if not os.path.exists(input_filename):
+    print(f"Error: The file '{input_filename}' was not found.")
+    sys.exit(1)
+
+# 4. Run the MRJob script locally and pipe output to a temporary file
+print("Running MapReduce job...")
+os.system(f'python3 word_count_script.py "{input_filename}" > temp_output.txt 2>/dev/null')
+
+# 5. Process the MapReduce output
+word_counts = []
+with open('temp_output.txt', 'r') as output_file:
+    for line in output_file:
+        if line.strip():
+            # mrjob outputs key/value separated by a tab
+            word, count = line.strip().split('\t')
+            word = word.strip('"')  # Clean up formatting quotes from mrjob
+            word_counts.append((word, int(count)))
+
+# 6. Sort words by count in descending order
+word_counts.sort(key=lambda x: x[1], reverse=True)
+
+# 7. Print the enhanced output using tabulate directly to the console
+print("\n--- MapReduce Results ---")
+table = tabulate(word_counts, headers=['Word', 'Count'], tablefmt='grid')
+print(table)
+
+# 8. Clean up the temporary file
+if os.path.exists('temp_output.txt'):
+    os.remove('temp_output.txt')
